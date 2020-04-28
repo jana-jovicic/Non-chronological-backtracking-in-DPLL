@@ -14,8 +14,6 @@ void PartialValuation::push(Literal lit, bool decide) {
 
     if (decide){
         _currentLevel++;
-        /* Postavljamo rampu pre literala da bismo znali da je decide literal u pitanju */
-        _stack.push_back(std::make_pair(NullLiteral, _currentLevel));
     }
     _stack.push_back(std::make_pair(lit, _currentLevel));
 }
@@ -102,8 +100,34 @@ void PartialValuation::backjumpToLiteral(const Literal &lit, std::vector<Literal
     while (_stack.back().first != lit && !_stack.empty()){
         _values[std::abs(_stack.back().first)] = ExtendedBool::Undefined;
         literals.push_back(_stack.back().first);
+
+        /*
+        std::cout << "Stack before: " << std::endl;
+        for (auto s : _stack){
+            std::cout << s.first << " " << s.second << std::endl;
+        }*/
+
         _stack.pop_back();
+
+        /*
+        std::cout << "Stack after: " << std::endl;
+        for (auto s : _stack){
+            std::cout << s.first << " " << s.second << std::endl;
+        }*/
     }
+
+
+    if (_stack.back().first == lit){
+        _values[std::abs(_stack.back().first)] = ExtendedBool::Undefined;
+        literals.push_back(_stack.back().first);
+        _stack.pop_back();
+        /*
+        std::cout << "Stack after: " << std::endl;
+        for (auto s : _stack){
+            std::cout << s.first << " " << s.second << std::endl;
+        }*/
+    }
+
     if (_stack.empty()){
         _currentLevel = 0;
     }

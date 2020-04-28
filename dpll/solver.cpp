@@ -52,7 +52,6 @@ Solver::Solver(std::istream &dimacsStream){
     }
 
     _cn = -1;
-    _status = ExtendedBool::Undefined;
 
     /*
     for (auto clause : _formula){
@@ -64,7 +63,7 @@ Solver::Solver(std::istream &dimacsStream){
 }
 
 Solver::Solver(const CNFFormula &formula)
-    : _formula(formula), _valuation(_formula.size()), _cn(-1), _status(ExtendedBool::Undefined)
+    : _formula(formula), _valuation(_formula.size()), _cn(-1)
 {}
 
 OptionalPartialValuation Solver::solve(){
@@ -72,11 +71,11 @@ OptionalPartialValuation Solver::solve(){
     Literal lit;
     Clause reason;
 
-    while (_status == ExtendedBool::Undefined){
+    while (true){
 
         if (checkConflict()){
             initialAnalysis();
-
+            std::cout << "Current level: " << _valuation.current_level() << std::endl;
             if (canBackjump()){
                 applyExplainUIP();
                 applyLearn();
@@ -92,7 +91,6 @@ OptionalPartialValuation Solver::solve(){
                 applyExplainEmpty();
                 applyLearn();
                 /* UNSAT */
-                _status = ExtendedBool::False;
                 return {};
             }
 
@@ -110,7 +108,6 @@ OptionalPartialValuation Solver::solve(){
 
         else {
             /* SAT */
-            _status = ExtendedBool::True;
             return _valuation;
         }
     }
@@ -153,14 +150,14 @@ void Solver::applyUnitPropagate(const Literal &lit, const Clause &c){
     _valuation.push(lit);
     _reason[std::abs(lit)] = c;
 #ifdef DEBUG
-  std::cout << "Literal p" << lit << " propagated because of clause " << c << std::endl;
+    std::cout << "Literal " << (lit < 0 ? "~p" : "p" )<< std::abs(lit) << " propagated because of clause " << c << std::endl;
 #endif
 }
 
 void Solver::applyDecide(const Literal &lit){
     _valuation.push(lit, true);
 #ifdef DEBUG
-  std::cout << "Literal p" << lit << " decided" << std::endl;
+    std::cout << "Literal " << (lit < 0 ? "~p" : "p" )<< std::abs(lit) << " decided" << std::endl;
 #endif
 }
 
@@ -196,10 +193,12 @@ void Solver::applyExplainEmpty() {
 
 void Solver::applyLearn(){
     _formula.push_back(_conflict);
-
 #ifdef DEBUG
   std::cout << "Learned clause: " << _conflict << std::endl;
 #endif
+  /*if(_conflict.empty()){
+      _status = ExtendedBool::False;
+  }*/
 }
 
 void Solver::applyExplain(const Literal &lit){
@@ -264,5 +263,9 @@ void Solver::getBackjumpLiteral(Literal &lit) {
         }
      }
     _valuation.lastAssertedLiteral(invertClause(tmp), lit);
+
+#ifdef DEBUG
+    std::cout << "Backjumping to literal " << (lit < 0 ? "~p" : "p" )<< std::abs(lit) << std::endl;
+#endif
 }
 

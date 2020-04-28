@@ -49,7 +49,6 @@ private:
     Clause _conflict;
     std::map<Literal, Clause> _reason;
     int _cn; // number of literals from conflict clause on last decision level
-    ExtendedBool _status;
 
 };
 
