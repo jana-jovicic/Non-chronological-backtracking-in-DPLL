@@ -20,24 +20,23 @@ Solver::Solver(std::istream &dimacsStream){
         }
     }
 
-    /* Proveravamo da smo procitali liniju 'p cnf brPromenljivih brKlauza' */
+    /* Check if we read line of format 'p cnf varCount clauseCount' */
     if (line[firstNonSpaceIndex] != 'p'){
-        throw std::runtime_error{"Pogresan format ulaza iz DIMACS stream-a. (p)"};
+        throw std::runtime_error{"Input file isn't in DIMACS format. (p)"};
     }
 
-    //std::istringstream implements input operations on string based streams
     std::istringstream parser{line.substr(firstNonSpaceIndex+1, std::string::npos)};
     std::string tmp;
     if(!(parser >> tmp) || tmp != "cnf"){
-        throw std::runtime_error{"Pogresan format ulaza iz DIMACS stream-a. (cnf)"};
+        throw std::runtime_error{"Input file isn't in DIMACS format. (cnf)"};
     }
 
     unsigned varCount, clauseCount;
     if (!(parser >> varCount >> clauseCount)){
-        throw std::runtime_error{"Pogresan format ulaza iz DIMACS stream-a. (varCount, clauseCount)"};
+        throw std::runtime_error{"Input file isn't in DIMACS format. (varCount, clauseCount)"};
     }
 
-    /* Citamo klauze linije po liniju preskacuci komentare i prazne linije */
+    /* Read clauses line by line, ignoring comments and empty lines. */
     _formula.resize(clauseCount);
     _valuation.reset(varCount);
     int clauseIdx = 0;
@@ -47,19 +46,12 @@ Solver::Solver(std::istream &dimacsStream){
             parser.clear();
             parser.str(line);
             std::copy(std::istream_iterator<int>{parser}, {}, std::back_inserter(_formula[clauseIdx]));
-            _formula[clauseIdx++].pop_back(); /* izbacujemo nulu sa kraja linije */
+            _formula[clauseIdx++].pop_back(); // pop zero from end of the line
         }
     }
 
     _cn = -1;
 
-    /*
-    for (auto clause : _formula){
-        for (auto lit : clause){
-            std::cout << lit << "\n";
-        }
-        std::cout << "*****\n";
-    }*/
 }
 
 Solver::Solver(const CNFFormula &formula)
@@ -75,7 +67,7 @@ OptionalPartialValuation Solver::solve(){
 
         if (checkConflict()){
             initialAnalysis();
-            std::cout << "Current level: " << _valuation.current_level() << std::endl;
+
             if (canBackjump()){
                 applyExplainUIP();
                 applyLearn();
@@ -116,9 +108,12 @@ OptionalPartialValuation Solver::solve(){
 
 bool Solver::checkConflict() {
 
-    for (auto it = _formula.begin(); it != _formula.end(); it++) {
-        if (_valuation.isClauseFalse(*it)){
-            _conflict = *it;
+    for (Clause clauseInFormula : _formula) {
+        if (_valuation.isClauseFalse(clauseInFormula)){
+            _conflict = clauseInFormula;
+#ifdef DEBUG
+     std::cout << "Conflict clause: " << _conflict << std::endl;
+#endif
             return true;
         }
     }
@@ -127,12 +122,13 @@ bool Solver::checkConflict() {
 
 bool Solver::checkUnit(Literal &lit, Clause &c){
 
-    for (auto it = _formula.begin(); it != _formula.end(); it++){
-        if (_valuation.isClauseUnit(*it, lit)){
-            c = *it;
+    for (Clause clauseInFormula : _formula){
+        if(_valuation.isClauseUnit(clauseInFormula, lit)){
+            c = clauseInFormula;
             return true;
         }
     }
+
     return false;
 }
 
@@ -167,12 +163,7 @@ bool Solver::isUIP(){
        Using the firstUIP strategy, the learning process is terminated when the backjump clause contains
        exactly one literal from the current decision level.
     */
-    if (_cn == -1 || _cn > 1){
-        return false;
-    }
-    else {
-        return true;
-    }
+    return (_cn == -1 || _cn > 1) ? false : true;
 }
 
 void Solver::applyExplainUIP() {
@@ -196,9 +187,6 @@ void Solver::applyLearn(){
 #ifdef DEBUG
   std::cout << "Learned clause: " << _conflict << std::endl;
 #endif
-  /*if(_conflict.empty()){
-      _status = ExtendedBool::False;
-  }*/
 }
 
 void Solver::applyExplain(const Literal &lit){
@@ -210,26 +198,20 @@ void Solver::applyExplain(const Literal &lit){
 
 Clause Solver::invertClause(const Clause &c){
     Clause new_clause;
-    for (auto it = c.begin(); it != c.end(); it++) {
-        new_clause.push_back(-(*it));
-    }
+    std::for_each(c.cbegin(), c.cend(), [&new_clause](Literal lit){new_clause.push_back(-lit);});
     return new_clause;
 }
 
 Clause Solver::resolve(const Clause &c1, const Clause &c2, const Literal &lit) {
     Clause resolvent;
 
-    for (auto it = c1.begin(); it != c1.end(); it++){
-        if (*it != -lit){
-            resolvent.push_back(*it);
-        }
-    }
+    /* Resolvent must contain all literals from first clause that are different from given literal (or its inverse). */
+    std::copy_if(c1.cbegin(), c1.cend(), std::back_inserter(resolvent), [&lit](Literal c1Lit){return c1Lit != -lit && c1Lit != lit;});
 
-    for (auto it = c2.begin(); it != c2.end(); it++){
-        if (*it != lit && c1.end() == std::find(c1.begin(), c1.end(), *it)){
-            resolvent.push_back(*it);
-        }
-    }
+    /* Resolvent must contain all literals from second clause that are different from given literal (or its inverse).
+       Literals that exist in first clause are not copied (to avoid duplicates). */
+    std::copy_if(c2.cbegin(), c2.cend(), std::back_inserter(resolvent), [&lit, c1](Literal c2Lit){
+        return c2Lit != -lit && c2Lit != lit && (c1.end() == std::find(c1.begin(), c1.end(), c2Lit));});
 
 #ifdef DEBUG
   std::cout << "Resolving clauses " << c1 << " and " << c2 << " into clause " << resolvent << std::endl;
@@ -245,6 +227,10 @@ void Solver::applyBackjump(const Literal &lit) {
     _valuation.lastAssertedLiteral(invertClause(_conflict), literalForPropagation);
     _valuation.backjumpToLiteral(lit, literals);
 
+#ifdef DEBUG
+    std::cout << "Backjumping to literal " << (lit < 0 ? "~p" : "p" )<< std::abs(lit) << std::endl;
+#endif
+
     for (Literal l : literals)
         _reason.erase(l);
 
@@ -253,19 +239,7 @@ void Solver::applyBackjump(const Literal &lit) {
 
 void Solver::getBackjumpLiteral(Literal &lit) {
     _valuation.lastAssertedLiteral(invertClause(_conflict), lit);
-    Clause tmp;
-    //std::copy(_conflict.begin(), _conflict.end(), std::back_inserter(tmp));
-    //tmp.erase(std::remove(tmp.begin(), tmp.end(), lit), tmp.end());
-
-    for (auto it = _conflict.begin(); it != _conflict.end(); it++) {
-        if (*it != -lit) {
-          tmp.push_back(*it);
-        }
-     }
-    _valuation.lastAssertedLiteral(invertClause(tmp), lit);
-
-#ifdef DEBUG
-    std::cout << "Backjumping to literal " << (lit < 0 ? "~p" : "p" )<< std::abs(lit) << std::endl;
-#endif
+    _conflict.erase(std::remove(_conflict.begin(), _conflict.end(), lit), _conflict.end());
+    _valuation.lastAssertedLiteral(invertClause(_conflict), lit);
 }
 

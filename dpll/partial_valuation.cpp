@@ -3,7 +3,7 @@
 #include <algorithm>
 
 PartialValuation::PartialValuation(unsigned nVars)
-    :_values(nVars+1, ExtendedBool::Undefined), _currentLevel(0)
+    :_values(nVars, ExtendedBool::Undefined), _currentLevel(0)
 {
     _stack.reserve(nVars);
 }
@@ -20,8 +20,10 @@ void PartialValuation::push(Literal lit, bool decide) {
 
 bool PartialValuation::isClauseFalse(const Clause &c) const {
 
-    /*Klauza je netacna u tekucoj parcijalnoj valuaciji ako za svaki literal klauze
-      vazi da je u parcijalnoj valuaciji njemu suprotan literal.*/
+    /*
+        Clause is false in current partial valuation if for every literal in clause,
+        partial valuation contains negation of that literal.
+    */
 
     for (Literal lit : c){
 
@@ -39,11 +41,16 @@ bool PartialValuation::isClauseUnit(const Clause &c, Literal &lit) const {
 
     /* Klauza je jedinicna ako za svaki literal klauze osim jednog, parcijalna valuacija
        sadrzi njemu suprotan literal. Ovaj jedan je nedefinisan. */
+    /*
+        Clause is unit if for every literal in clause except one,
+        partial valuation contains negation of that literal.
+        That one literal is undefined.
+    */
 
     Literal undefinedLit = NullLiteral;
     int countUndefined = 0;
 
-    /* Za svaki literal proveravamo da li je nedefinisan */
+    /* For every literal we check if it is undefined. */
     for (Literal lit : c){
 
         ExtendedBool valueInClause = lit > 0 ? ExtendedBool::True : ExtendedBool::False;
@@ -55,16 +62,17 @@ bool PartialValuation::isClauseUnit(const Clause &c, Literal &lit) const {
                 ++countUndefined;
                 undefinedLit = lit;
 
-                /* Ako naidjemo na jos jedan nedefinisan literal - klauza nije jedinicna */
+                /* If we find another undefined literal - clause is not unit */
                 if (countUndefined > 1){
                     break;
                 }
             }
         }
         else {
-            return NullLiteral;
-            // Jer za svaki literal iz klauze, pval mora da sadrzi njemu suprotan.
-            // Ako su isti, sigurno nije jedinicna.
+            return false;
+            /* Returns false, because partial valuation must contain literal that is negation of literal in clause or undefined literal.
+               If literals in partial valuation and clause are equivalent, clause is not unit. */
+
         }
     }
 
@@ -76,7 +84,6 @@ bool PartialValuation::isClauseUnit(const Clause &c, Literal &lit) const {
         lit = NullLiteral;
         return false;
     }
-    //return countUndefined == 1 ? undefinedLit : NullLiteral;
 }
 
 Literal PartialValuation::firstUndefined() const {
@@ -100,20 +107,8 @@ void PartialValuation::backjumpToLiteral(const Literal &lit, std::vector<Literal
     while (_stack.back().first != lit && !_stack.empty()){
         _values[std::abs(_stack.back().first)] = ExtendedBool::Undefined;
         literals.push_back(_stack.back().first);
-
-        /*
-        std::cout << "Stack before: " << std::endl;
-        for (auto s : _stack){
-            std::cout << s.first << " " << s.second << std::endl;
-        }*/
-
         _stack.pop_back();
 
-        /*
-        std::cout << "Stack after: " << std::endl;
-        for (auto s : _stack){
-            std::cout << s.first << " " << s.second << std::endl;
-        }*/
     }
 
 
@@ -193,7 +188,7 @@ std::ostream &operator<<(std::ostream &out, const PartialValuation &pval){
     }
     else
     {
-      throw std::logic_error{"Nepoznata vrednost dodeljena promenljivoj (nije ni True, ni False, ni Undefined)"};
+      throw std::logic_error{"Unknow value assigned to variable (nor True, nor False, nor Undefined)"};
     }
   }
   return out << " ]";
@@ -201,13 +196,8 @@ std::ostream &operator<<(std::ostream &out, const PartialValuation &pval){
 
 std::ostream &operator<<(std::ostream &out, const Clause &c){
     out << "[ ";
-    for (auto it = c.cbegin(); it != c.cend(); it++){
-        if (*it > 0){
-            out << "p" << *it << " ";
-        }
-        else {
-            out << "~p" << std::abs(*it) << " ";
-        }
+    for (Literal lit : c){
+        out << (lit > 0 ? "p" : "~p") << std::abs(lit) << " ";
     }
     return out << " ]";
 }
