@@ -136,11 +136,6 @@ void Solver::initialAnalysis() {
   _cn = _valuation.numberOfTopLevelLiterals(invertClause(_conflict));
 }
 
-bool Solver::canBackjump(){
-    return _valuation.current_level() > 0;
-}
-
-
 
 void Solver::applyUnitPropagate(const Literal &lit, const Clause &c){
     _valuation.push(lit);
@@ -149,6 +144,7 @@ void Solver::applyUnitPropagate(const Literal &lit, const Clause &c){
     std::cout << "Literal " << (lit < 0 ? "~p" : "p" )<< std::abs(lit) << " propagated because of clause " << c << std::endl;
 #endif
 }
+
 
 void Solver::applyDecide(const Literal &lit){
     _valuation.push(lit, true);
@@ -220,6 +216,10 @@ Clause Solver::resolve(const Clause &c1, const Clause &c2, const Literal &lit) {
     return resolvent;
 }
 
+
+bool Solver::canBackjump(){
+    return _valuation.current_level() > 0;
+}
 
 void Solver::applyBackjump(const Literal &lit) {
     std::vector<Literal> literals;

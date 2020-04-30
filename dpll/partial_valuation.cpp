@@ -39,8 +39,6 @@ bool PartialValuation::isClauseFalse(const Clause &c) const {
 
 bool PartialValuation::isClauseUnit(const Clause &c, Literal &lit) const {
 
-    /* Klauza je jedinicna ako za svaki literal klauze osim jednog, parcijalna valuacija
-       sadrzi njemu suprotan literal. Ovaj jedan je nedefinisan. */
     /*
         Clause is unit if for every literal in clause except one,
         partial valuation contains negation of that literal.
@@ -133,8 +131,8 @@ void PartialValuation::backjumpToLiteral(const Literal &lit, std::vector<Literal
 
 void PartialValuation::lastAssertedLiteral(const Clause &c, Literal &lit) const {
     /*
-        The last asserted literal of a clause c, is the literal from c that is in M (M - stack of partial valuation),
-        such that no other literal from c comes after it in M .
+        The last asserted literal of a clause c, is the literal from c that is on stack of partial valuation,
+        such that no other literal from c comes after it in stack.
     */
 
     for (auto it = _stack.rbegin(); it != _stack.rend(); it++){
