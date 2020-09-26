@@ -46,11 +46,6 @@ private:
      */
     bool checkUnit(Literal &lit, Clause &c);
 
-    /**
-     * @brief initialAnalysis - sets _cn to number of top level literals
-     */
-    void initialAnalysis();
-
 
     /**
      * @brief applyUnitPropagate - propagates unit literal of unit clause
@@ -122,16 +117,23 @@ private:
     void applyBackjump(const Literal &lit);
 
     /**
+     * @brief applyBackjumpToStart - Backjumps to start
+     */
+    void applyBackjumpToStart();
+
+    /**
      * @brief getBackjumpLiteral - Finds literal to which needs to be backjumped and saves it in parameter lit
      */
-    void getBackjumpLiteral(Literal &lit);
+    void getBackjumpLiteral(Literal &lit, bool &restart);
+
+    void restart();
 
 
     CNFFormula _formula;
     PartialValuation _valuation;
     Clause _conflict;
     std::map<Literal, Clause> _reason; /* maps the literal and clause that is a reason for its poropagation */
-    int _cn; /* number of literals from conflict clause on last decision level */
+    int _nConflictTopLevelLiteras; /* number of literals from conflict clause on last decision level */
 
 };
 

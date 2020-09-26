@@ -110,17 +110,6 @@ void PartialValuation::backjumpToLiteral(const Literal &lit, std::vector<Literal
     }
 
 
-    if (_stack.back().first == lit){
-        _values[std::abs(_stack.back().first)] = ExtendedBool::Undefined;
-        literals.push_back(_stack.back().first);
-        _stack.pop_back();
-        /*
-        std::cout << "Stack after: " << std::endl;
-        for (auto s : _stack){
-            std::cout << s.first << " " << s.second << std::endl;
-        }*/
-    }
-
     if (_stack.empty()){
         _currentLevel = 0;
     }
@@ -129,12 +118,12 @@ void PartialValuation::backjumpToLiteral(const Literal &lit, std::vector<Literal
     }
 }
 
-void PartialValuation::lastAssertedLiteral(const Clause &c, Literal &lit) const {
+void PartialValuation::lastAssertedLiteral(const Clause &c, Literal &lit, bool &empty) const {
     /*
         The last asserted literal of a clause c, is the literal from c that is on stack of partial valuation,
         such that no other literal from c comes after it in stack.
     */
-
+    empty = false;
     for (auto it = _stack.rbegin(); it != _stack.rend(); it++){
         for (auto it2 = c.begin(); it2 != c.end(); it2++){
             if (it->first == *it2){
@@ -143,6 +132,7 @@ void PartialValuation::lastAssertedLiteral(const Clause &c, Literal &lit) const 
             }
         }
     }
+    empty = true;
 }
 
 unsigned PartialValuation::numberOfTopLevelLiterals(const Clause &c) const {
@@ -165,7 +155,11 @@ unsigned PartialValuation::numberOfTopLevelLiterals(const Clause &c) const {
     return count;
 }
 
-
+void PartialValuation::clear(){
+    _stack.clear();
+    std::fill(_values.begin(), _values.end(), ExtendedBool::Undefined);
+    _currentLevel = 0;
+}
 
 std::ostream &operator<<(std::ostream &out, const PartialValuation &pval){
 

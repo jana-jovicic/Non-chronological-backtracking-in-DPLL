@@ -50,12 +50,12 @@ Solver::Solver(std::istream &dimacsStream){
         }
     }
 
-    _cn = -1;
+    _nConflictTopLevelLiteras = -1;
 
 }
 
 Solver::Solver(const CNFFormula &formula)
-    : _formula(formula), _valuation(_formula.size()), _cn(-1)
+    : _formula(formula), _valuation(_formula.size()), _nConflictTopLevelLiteras(-1)
 {}
 
 OptionalPartialValuation Solver::solve(){
@@ -66,15 +66,23 @@ OptionalPartialValuation Solver::solve(){
     while (true){
 
         if (checkConflict()){
-            initialAnalysis();
+
+            _nConflictTopLevelLiteras = _valuation.numberOfTopLevelLiterals(invertClause(_conflict));
 
             if (canBackjump()){
                 applyExplainUIP();
                 applyLearn();
 
+                bool restart;
                 Literal backjumpLiteral;
-                getBackjumpLiteral(backjumpLiteral);
-                applyBackjump(backjumpLiteral);
+                getBackjumpLiteral(backjumpLiteral, restart);
+
+                if (!restart){
+                    applyBackjump(backjumpLiteral);
+                }
+                else {
+                    applyBackjumpToStart();
+                }
 
                 _conflict.clear();
 
@@ -132,10 +140,6 @@ bool Solver::checkUnit(Literal &lit, Clause &c){
     return false;
 }
 
-void Solver::initialAnalysis() {
-  _cn = _valuation.numberOfTopLevelLiterals(invertClause(_conflict));
-}
-
 
 void Solver::applyUnitPropagate(const Literal &lit, const Clause &c){
     _valuation.push(lit);
@@ -159,13 +163,14 @@ bool Solver::isUIP(){
        Using the firstUIP strategy, the learning process is terminated when the backjump clause contains
        exactly one literal from the current decision level.
     */
-    return (_cn == -1 || _cn > 1) ? false : true;
+    return (_nConflictTopLevelLiteras == -1 || _nConflictTopLevelLiteras > 1) ? false : true;
 }
 
 void Solver::applyExplainUIP() {
     while (!isUIP()){
         Literal lit;
-        _valuation.lastAssertedLiteral(invertClause(_conflict), lit);
+        bool empty;
+        _valuation.lastAssertedLiteral(invertClause(_conflict), lit, empty);
         applyExplain(lit);
     }
 }
@@ -173,7 +178,8 @@ void Solver::applyExplainUIP() {
 void Solver::applyExplainEmpty() {
     while(!_conflict.empty()){
         Literal lit;
-        _valuation.lastAssertedLiteral(invertClause(_conflict), lit);
+        bool empty;
+        _valuation.lastAssertedLiteral(invertClause(_conflict), lit, empty);
         applyExplain(lit);
     }
 }
@@ -188,7 +194,7 @@ void Solver::applyLearn(){
 void Solver::applyExplain(const Literal &lit){
     Clause reason = _reason[std::abs(lit)];
     _conflict = resolve(_conflict, reason, lit);
-    _cn = _valuation.numberOfTopLevelLiterals(invertClause(_conflict));
+    _nConflictTopLevelLiteras = _valuation.numberOfTopLevelLiterals(invertClause(_conflict));
 }
 
 
@@ -224,7 +230,11 @@ bool Solver::canBackjump(){
 void Solver::applyBackjump(const Literal &lit) {
     std::vector<Literal> literals;
     Literal literalForPropagation;
-    _valuation.lastAssertedLiteral(invertClause(_conflict), literalForPropagation);
+    bool empty;
+    _valuation.lastAssertedLiteral(invertClause(_conflict), literalForPropagation, empty);
+//#ifdef DEBUG
+    //std::cout << "applyBackjump - literalForPropagation: " << literalForPropagation << std::endl;
+//#endif
     _valuation.backjumpToLiteral(lit, literals);
 
 #ifdef DEBUG
@@ -237,9 +247,35 @@ void Solver::applyBackjump(const Literal &lit) {
     applyUnitPropagate(-literalForPropagation, _conflict);
 }
 
-void Solver::getBackjumpLiteral(Literal &lit) {
-    _valuation.lastAssertedLiteral(invertClause(_conflict), lit);
-    _conflict.erase(std::remove(_conflict.begin(), _conflict.end(), lit), _conflict.end());
-    _valuation.lastAssertedLiteral(invertClause(_conflict), lit);
+void Solver::getBackjumpLiteral(Literal &lit, bool &restart) {
+    _valuation.lastAssertedLiteral(invertClause(_conflict), lit, restart);
+//#ifdef DEBUG
+    //std::cout << "Last asserted before: " << lit << std::endl;
+//#endif
+    Clause tmp;
+    for (Literal l: _conflict){
+        if (l != -lit){
+            tmp.push_back(l);
+        }
+    }
+    _valuation.lastAssertedLiteral(invertClause(tmp), lit, restart);
+//#ifdef DEBUG
+    //std::cout << "Last asserted after: " << lit  << std::endl;
+//#endif
 }
 
+void Solver::applyBackjumpToStart() {
+#ifdef DEBUG
+    std::cout << "Backjumping to start" << std::endl;
+#endif
+    Literal literalForPropagation;
+    bool empty;
+    _valuation.lastAssertedLiteral(invertClause(_conflict), literalForPropagation, empty);
+    _reason.clear();
+    restart();
+    applyUnitPropagate(-literalForPropagation, _conflict);
+}
+
+void Solver::restart() {
+  _valuation.clear();
+}

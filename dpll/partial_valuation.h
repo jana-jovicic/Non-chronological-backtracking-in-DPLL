@@ -88,7 +88,7 @@ public:
      * The last asserted literal of a clause c, is the literal from c that is on stack of partial valuation,
      * such that no other literal from c comes after it on stack.
      */
-    void lastAssertedLiteral(const Clause &c, Literal &lit) const;
+    void lastAssertedLiteral(const Clause &c, Literal &lit, bool &empty) const;
 
 
     /**
@@ -96,6 +96,8 @@ public:
      * that are also present in clause c.
      */
     unsigned numberOfTopLevelLiterals(const Clause &c) const;
+
+    void clear();
 
     friend std::ostream& operator<<(std::ostream &out, const PartialValuation &pval);
 
